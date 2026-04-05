@@ -1,0 +1,4 @@
+ALTER TABLE sites
+    ADD COLUMN is_online BOOLEAN NOT NULL DEFAULT true,
+    ADD COLUMN consecutive_failures INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN last_checked_at TIMESTAMPTZ;

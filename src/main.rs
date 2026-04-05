@@ -54,7 +54,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let site_cache = features::sites::cache::new();
     features::sites::cache::reload(&site_cache, &db).await?;
 
-    let state = AppState { db, site_cache };
+    let state = AppState { db: db.clone(), site_cache: site_cache.clone() };
+
+    tokio::spawn(features::checker::worker::run(db, site_cache));
+
     let app = Router::new()
         .merge(features::sites::router())
         .with_state(state);
