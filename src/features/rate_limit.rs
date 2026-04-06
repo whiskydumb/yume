@@ -94,3 +94,53 @@ pub async fn limit(
     }
     next.run(request).await
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::{IpAddr, Ipv4Addr};
+
+    #[test]
+    fn real_ip_returns_fallback_when_proxy_not_trusted() {
+        let headers = axum::http::HeaderMap::new();
+        let fallback = IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4));
+        assert_eq!(real_ip(&headers, fallback), fallback);
+    }
+
+    #[test]
+    fn real_ip_ignores_forwarded_header_when_proxy_not_trusted() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("x-forwarded-for", "10.0.0.1".parse().unwrap());
+        let fallback = IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4));
+        assert_eq!(real_ip(&headers, fallback), fallback);
+    }
+
+    #[test]
+    fn rate_limiter_allows_within_limit() {
+        let limiter = RateLimiter::new(3, 60);
+        let ip = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
+        assert!(limiter.check(ip));
+        assert!(limiter.check(ip));
+        assert!(limiter.check(ip));
+    }
+
+    #[test]
+    fn rate_limiter_blocks_over_limit() {
+        let limiter = RateLimiter::new(2, 60);
+        let ip = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
+        assert!(limiter.check(ip));
+        assert!(limiter.check(ip));
+        assert!(!limiter.check(ip));
+    }
+
+    #[test]
+    fn rate_limiter_separate_ips_independent() {
+        let limiter = RateLimiter::new(1, 60);
+        let ip1 = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+        let ip2 = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 2));
+        assert!(limiter.check(ip1));
+        assert!(limiter.check(ip2));
+        assert!(!limiter.check(ip1));
+        assert!(!limiter.check(ip2));
+    }
+}

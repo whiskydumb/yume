@@ -10,7 +10,7 @@ pub struct SiteData {
 }
 
 impl SiteData {
-    fn new(sites: Vec<Site>) -> Self {
+    pub(crate) fn new(sites: Vec<Site>) -> Self {
         let slug_index = sites
             .iter()
             .enumerate()
@@ -68,4 +68,50 @@ pub async fn reload(cache: &SiteCache, db: &PgPool) -> Result<(), sqlx::Error> {
 
     cache.store(Arc::new(SiteData::new(sites)));
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::models::Site;
+    use super::*;
+    use uuid::Uuid;
+
+    fn make_site(slug: &str, position: i32) -> Site {
+        Site {
+            id: Uuid::new_v4(),
+            name: slug.into(),
+            url: format!("https://{slug}.example.com").into(),
+            slug: slug.into(),
+            description: None,
+            favicon: None,
+            enabled: true,
+            position,
+        }
+    }
+
+    #[test]
+    fn empty_sites_index_returns_none() {
+        let data = SiteData::new(vec![]);
+        assert!(data.index_by_slug("anything").is_none());
+    }
+
+    #[test]
+    fn index_by_slug_finds_correct_position() {
+        let sites = vec![
+            make_site("slug0", 0),
+            make_site("slug1", 1),
+            make_site("slug2", 2),
+        ];
+        let data = SiteData::new(sites);
+        assert_eq!(data.index_by_slug("slug0"), Some(0));
+        assert_eq!(data.index_by_slug("slug1"), Some(1));
+        assert_eq!(data.index_by_slug("slug2"), Some(2));
+    }
+
+    #[test]
+    fn index_by_slug_missing_returns_none() {
+        let sites = vec![make_site("exists", 0)];
+        let data = SiteData::new(sites);
+        assert!(data.index_by_slug("nope").is_none());
+    }
 }
