@@ -1,5 +1,5 @@
 use crate::state::AppState;
-use axum::{Router, routing::get, extract::State, http::StatusCode};
+use axum::{Router, extract::State, http::StatusCode, routing::get};
 use sqlx::PgPool;
 
 mod home;
