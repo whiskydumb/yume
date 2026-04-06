@@ -39,10 +39,10 @@ pub async fn run(db: PgPool, cache: crate::features::sites::cache::SiteCache, no
         tokio::select! {
             _ = tokio::time::sleep(Duration::from_secs(CHECK_INTERVAL_SECS)) => {},
             _ = notify.notified() => {
-                tracing::info!("checker: manual scan triggered");
+                // tracing::info!("checker: manual scan triggered");
             },
             _ = shutdown.cancelled() => {
-                tracing::info!("checker: shutting down");
+                // tracing::info!("checker: shutting down");
                 return;
             },
         }
@@ -89,7 +89,7 @@ pub async fn run(db: PgPool, cache: crate::features::sites::cache::SiteCache, no
                         {
                             tracing::error!(error = %e, site_id = %site_id, "favicon: failed to save path");
                         } else {
-                            tracing::info!(site_id = %site_id, path = %path, "favicon saved");
+                            // tracing::info!(site_id = %site_id, path = %path, "favicon saved");
                             cache_changed.store(true, Ordering::Relaxed);
                         }
                     }
@@ -144,7 +144,7 @@ async fn check_site(client: &Client, db: &PgPool, site: SiteRow) -> bool {
         }
 
         if new_online != site.is_online {
-            tracing::info!(site_id = %site.id, url = %site.url, online = new_online, "site status changed");
+            // tracing::info!(site_id = %site.id, url = %site.url, online = new_online, "site status changed");
             return true;
         }
     }

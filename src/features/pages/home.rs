@@ -10,7 +10,7 @@ use std::sync::Arc;
 #[derive(Template)]
 #[template(path = "home/index.html")]
 struct IndexTemplate {
-    sites: Arc<Vec<Site>>,
+    sites: Vec<Site>,
     base_url: Arc<str>,
 }
 
@@ -18,6 +18,6 @@ pub async fn index(
     State(cache): State<SiteCache>,
     State(base_url): State<BaseUrl>,
 ) -> error::Result<Html<String>> {
-    let sites = cache.load_full();
-    Ok(Html((IndexTemplate { sites, base_url: base_url.0 }).render()?))
+    let data = cache.load_full();
+    Ok(Html((IndexTemplate { sites: data.sites.clone(), base_url: base_url.0 }).render()?))
 }

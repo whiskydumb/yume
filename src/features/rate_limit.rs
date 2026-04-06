@@ -8,9 +8,18 @@ use axum::{
 use dashmap::DashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::time::Instant;
 
+static TRUST_PROXY: LazyLock<bool> = LazyLock::new(|| {
+    std::env::var("TRUST_PROXY").map(|v| v == "1" || v == "true").unwrap_or(false)
+});
+
 pub fn real_ip(headers: &axum::http::HeaderMap, fallback: IpAddr) -> IpAddr {
+    if !*TRUST_PROXY {
+        return fallback;
+    }
+
     headers
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())

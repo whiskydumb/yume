@@ -1,12 +1,33 @@
 use super::models::Site;
 use arc_swap::ArcSwap;
 use sqlx::PgPool;
+use std::collections::HashMap;
 use std::sync::Arc;
 
-pub type SiteCache = Arc<ArcSwap<Vec<Site>>>;
+pub struct SiteData {
+    pub sites: Vec<Site>,
+    slug_index: HashMap<Arc<str>, usize>,
+}
+
+impl SiteData {
+    fn new(sites: Vec<Site>) -> Self {
+        let slug_index = sites
+            .iter()
+            .enumerate()
+            .map(|(i, s)| (Arc::clone(&s.slug), i))
+            .collect();
+        Self { sites, slug_index }
+    }
+
+    pub fn index_by_slug(&self, slug: &str) -> Option<usize> {
+        self.slug_index.get(slug).copied()
+    }
+}
+
+pub type SiteCache = Arc<ArcSwap<SiteData>>;
 
 pub fn new() -> SiteCache {
-    Arc::new(ArcSwap::from_pointee(Vec::new()))
+    Arc::new(ArcSwap::from_pointee(SiteData::new(Vec::new())))
 }
 
 pub async fn reload(cache: &SiteCache, db: &PgPool) -> Result<(), sqlx::Error> {
@@ -45,6 +66,6 @@ pub async fn reload(cache: &SiteCache, db: &PgPool) -> Result<(), sqlx::Error> {
         })
         .collect();
 
-    cache.store(Arc::new(sites));
+    cache.store(Arc::new(SiteData::new(sites)));
     Ok(())
 }

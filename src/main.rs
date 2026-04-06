@@ -120,6 +120,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     header::CACHE_CONTROL,
                     HeaderValue::from_static("public, max-age=604800"),
                 ))
+                .layer(SetResponseHeaderLayer::overriding(
+                    header::X_CONTENT_TYPE_OPTIONS,
+                    HeaderValue::from_static("nosniff"),
+                ))
+                .layer(SetResponseHeaderLayer::overriding(
+                    header::CONTENT_SECURITY_POLICY,
+                    HeaderValue::from_static("default-src 'none'; style-src 'unsafe-inline'"),
+                ))
                 .service(ServeDir::new("data"))
         )
         .with_state(state);

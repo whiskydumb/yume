@@ -36,3 +36,7 @@ impl From<sqlx::Error> for AppError {
         Self::Internal(e.to_string())
     }
 }
+
+pub fn is_unique_violation(e: &sqlx::Error) -> bool {
+    matches!(e, sqlx::Error::Database(db) if db.code().as_deref() == Some("23505"))
+}

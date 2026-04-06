@@ -16,10 +16,6 @@ use axum_extra::extract::cookie::{Cookie, CookieJar};
 use serde::Deserialize;
 use std::sync::Arc;
 
-fn is_unique_violation(e: &sqlx::Error) -> bool {
-    matches!(e, sqlx::Error::Database(db) if db.code().as_deref() == Some("23505"))
-}
-
 #[derive(Template)]
 #[template(path = "admin/login.html")]
 struct LoginTemplate {
@@ -86,6 +82,7 @@ pub async fn login_post(
         .secure(true)
         .same_site(axum_extra::extract::cookie::SameSite::Lax)
         .path("/")
+        .max_age(time::Duration::seconds((state.jwt_expiry_hours * 3600) as i64))
         .build();
 
     Ok((jar.add(cookie), Redirect::to("/admin")).into_response())
@@ -140,18 +137,12 @@ pub async fn applications(
     .fetch_all(&state.db)
     .await?;
 
-    let mut pending = Vec::new();
-    let mut resolved = Vec::new();
+    let (pending, resolved): (Vec<_>, Vec<_>) = rows
+        .iter()
+        .cloned()
+        .partition(|app| app.status == "pending");
 
-    for app in &rows {
-        if app.status == "pending" {
-            pending.push(app.clone());
-        } else {
-            resolved.push(app.clone());
-        }
-    }
-
-    let recent: Vec<Application> = resolved.iter().take(5).cloned().collect();
+    let recent: Vec<Application> = resolved.into_iter().take(5).collect();
 
     Ok(Html((ApplicationsTemplate { pending, recent, all: rows, csrf_token: csrf.0 }).render()?))
 }
@@ -204,7 +195,7 @@ pub async fn add_site(
     )
     .execute(&mut *tx)
     .await {
-        return match is_unique_violation(&e) {
+        return match crate::error::is_unique_violation(&e) {
             true => Ok(flash::redirect(jar, Flash::Error("slug already exists"), "/admin/sites")),
             false => Err(e.into()),
         };
@@ -299,27 +290,16 @@ pub async fn reorder_sites(
         .execute(&mut *tx)
         .await?;
 
-    for (i, id) in body.ids.iter().enumerate() {
-        let neg = -((i as i32) + 1);
-        sqlx::query!(
-            "UPDATE sites SET position = $1 WHERE id = $2",
-            neg,
-            *id,
-        )
-        .execute(&mut *tx)
-        .await?;
-    }
-
-    for (i, id) in body.ids.iter().enumerate() {
-        let pos = (i as i32) + 1;
-        sqlx::query!(
-            "UPDATE sites SET position = $1 WHERE id = $2",
-            pos,
-            *id,
-        )
-        .execute(&mut *tx)
-        .await?;
-    }
+    let positions: Vec<i32> = (1..=body.ids.len() as i32).collect();
+    sqlx::query!(
+        "UPDATE sites SET position = t.new_pos
+         FROM unnest($1::uuid[], $2::int[]) AS t(id, new_pos)
+         WHERE sites.id = t.id",
+        &body.ids,
+        &positions,
+    )
+    .execute(&mut *tx)
+    .await?;
 
     tx.commit().await?;
     cache::reload(&state.site_cache, &state.db).await?;
@@ -374,7 +354,7 @@ pub async fn approve_application(
     )
     .execute(&mut *tx)
     .await {
-        return match is_unique_violation(&e) {
+        return match crate::error::is_unique_violation(&e) {
             true => Ok(flash::redirect(jar, Flash::Error("slug already exists"), "/admin/applications")),
             false => Err(e.into()),
         };

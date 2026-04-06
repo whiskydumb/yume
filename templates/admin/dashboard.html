@@ -5,12 +5,12 @@
             <div class="admin-header-row">
                 <h2>sites</h2>
                 <div class="admin-nav">
-                    <form action="/admin/scan" method="POST" style="display:inline">
+                    <form action="/admin/scan" method="POST" class="inline">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <button type="submit" class="btn btn-sm">scan now</button>
                     </form>
                     <a href="/admin/applications" class="btn btn-sm">applications</a>
-                    <form action="/admin/logout" method="POST" style="display:inline">
+                    <form action="/admin/logout" method="POST" class="inline">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <button type="submit" class="btn btn-sm">logout</button>
                     </form>
@@ -52,7 +52,7 @@
                                 <div class="action-group">
                                     <button type="submit" form="form-add" class="btn btn-sm">add</button>
                                 </div>
-                                <form action="/admin/sites/add" method="POST" id="form-add" style="display:none">
+                                <form action="/admin/sites/add" method="POST" id="form-add" class="hidden">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                 </form>
                             </td>
@@ -86,7 +86,7 @@
                                 {% endif %}
                             </td>
                             <td class="col-enabled">
-                                <form action="/admin/sites/{{ site.id }}/toggle" method="POST" style="display:inline">
+                                <form action="/admin/sites/{{ site.id }}/toggle" method="POST" class="inline">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     {% if site.enabled %}
                                     <button type="submit" class="badge badge-on btn-toggle" title="disable">✓</button>
@@ -99,10 +99,10 @@
                                 <div class="action-group">
                                     <button type="button" class="btn btn-sm btn-edit cell-view" onclick="editRow(this)">edit</button>
                                     <button type="submit" form="form-{{ site.id }}" class="btn btn-sm cell-edit">save</button>
-                                    <form action="/admin/sites/{{ site.id }}/update" method="POST" id="form-{{ site.id }}" style="display:none">
+                                    <form action="/admin/sites/{{ site.id }}/update" method="POST" id="form-{{ site.id }}" class="hidden">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     </form>
-                                    <form action="/admin/sites/{{ site.id }}/delete" method="POST" style="display:inline" onsubmit="return confirm('delete this site?')">
+                                    <form action="/admin/sites/{{ site.id }}/delete" method="POST" class="inline" onsubmit="return confirm('delete this site?')">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                         <button type="submit" class="btn btn-sm danger">del</button>
                                     </form>

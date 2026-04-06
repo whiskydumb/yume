@@ -16,10 +16,6 @@ use sqlx::types::ipnetwork;
 
 use super::models::ApplyForm;
 
-fn is_unique_violation(e: &sqlx::Error) -> bool {
-    matches!(e, sqlx::Error::Database(db) if db.code().as_deref() == Some("23505"))
-}
-
 #[derive(Template)]
 #[template(path = "apply.html")]
 struct ApplyTemplate {
@@ -63,7 +59,7 @@ pub async fn submit(
     )
     .execute(&state.db)
     .await {
-        return match is_unique_violation(&e) {
+        return match crate::error::is_unique_violation(&e) {
             true => Ok(flash::redirect(jar, Flash::Error("this slug is already taken"), "/apply")),
             false => Err(e.into()),
         };

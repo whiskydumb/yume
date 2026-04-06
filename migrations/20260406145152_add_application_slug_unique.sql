@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX applications_slug_pending ON applications (slug) WHERE status = 'pending';

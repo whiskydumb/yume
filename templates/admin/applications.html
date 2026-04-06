@@ -6,7 +6,7 @@
                 <h2>applications</h2>
                 <div class="admin-nav">
                     <a href="/admin/sites" class="btn btn-sm">sites</a>
-                    <form action="/admin/logout" method="POST" style="display:inline">
+                    <form action="/admin/logout" method="POST" class="inline">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <button type="submit" class="btn btn-sm">logout</button>
                     </form>
@@ -43,11 +43,11 @@
                                     <td>{{ app.description.as_deref().unwrap_or("-") }}</td>
                                     <td class="col-actions">
                                         <div class="action-group">
-                                            <form action="/admin/applications/{{ app.id }}/approve" method="POST" style="display:inline">
+                                            <form action="/admin/applications/{{ app.id }}/approve" method="POST" class="inline">
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                                 <button type="submit" class="btn btn-sm btn-approve">approve</button>
                                             </form>
-                                            <form action="/admin/applications/{{ app.id }}/reject" method="POST" style="display:inline" onsubmit="return confirm('reject this application?')">
+                                            <form action="/admin/applications/{{ app.id }}/reject" method="POST" class="inline" onsubmit="return confirm('reject this application?')">
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                                 <button type="submit" class="btn btn-sm danger">reject</button>
                                             </form>
@@ -66,7 +66,7 @@
                 <button type="button" class="collapse-header" onclick="toggleSection(this)">
                     <span class="collapse-arrow">▶</span> recent resolved ({{ recent.len() }})
                 </button>
-                <div class="collapse-body" style="display:none">
+                <div class="collapse-body" class="hidden">
                     {% if recent.is_empty() %}
                     <p class="empty-msg">no resolved applications yet</p>
                     {% else %}
@@ -108,7 +108,7 @@
                 <button type="button" class="collapse-header" onclick="toggleSection(this)">
                     <span class="collapse-arrow">▶</span> all applications ({{ all.len() }})
                 </button>
-                <div class="collapse-body" style="display:none">
+                <div class="collapse-body" class="hidden">
                     {% if all.is_empty() %}
                     <p class="empty-msg">no applications</p>
                     {% else %}

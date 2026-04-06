@@ -27,7 +27,7 @@
         </div>
         <div class="site-list">
             <h2>sites in the ring</h2>
-            {% for site in &*sites %}
+            {% for site in &sites %}
             <a href="{{ site.url }}" target="_blank" class="site-card">
                 <div class="site-icon">
                     {% if let Some(fav) = site.favicon %}
