@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block title %}admin{% endblock %}
+{% block content %}
+        <div class="admin-dashboard">
+            <div class="admin-header-row">
+                <h2>sites</h2>
+                <div class="admin-nav">
+                    <form action="/admin/scan" method="POST" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-sm">scan now</button>
+                    </form>
+                    <a href="/admin/applications" class="btn btn-sm">applications</a>
+                    <form action="/admin/logout" method="POST" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-sm">logout</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th class="col-pos">#</th>
+                            <th class="col-slug">slug</th>
+                            <th class="col-name">name</th>
+                            <th class="col-url">url</th>
+                            <th class="col-desc">desc</th>
+                            <th class="col-status">status</th>
+                            <th class="col-enabled">on</th>
+                            <th class="col-actions">actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="row-add">
+                            <td class="col-pos">+</td>
+                            <td class="col-slug">
+                                <input type="text" name="slug" placeholder="my-site" form="form-add" pattern="[a-z0-9\-]{3,50}" required>
+                            </td>
+                            <td class="col-name">
+                                <input type="text" name="name" placeholder="Site Name" form="form-add" required>
+                            </td>
+                            <td class="col-url">
+                                <input type="url" name="url" placeholder="https://example.com" form="form-add" required>
+                            </td>
+                            <td class="col-desc">
+                                <input type="text" name="description" placeholder="optional" form="form-add">
+                            </td>
+                            <td class="col-status"></td>
+                            <td class="col-enabled"></td>
+                            <td class="col-actions">
+                                <div class="action-group">
+                                    <button type="submit" form="form-add" class="btn btn-sm">add</button>
+                                </div>
+                                <form action="/admin/sites/add" method="POST" id="form-add" style="display:none">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                </form>
+                            </td>
+                        </tr>
+                        {% for site in sites %}
+                        <tr data-row="site" data-id="{{ site.id }}" draggable="true"{% if !site.enabled %} class="row-disabled"{% endif %}>
+                            <td class="col-pos">
+                                <span class="drag-handle" title="drag to reorder">⠿</span>
+                            </td>
+                            <td class="col-slug">
+                                <span class="cell-view">{{ site.slug }}</span>
+                                <input class="cell-edit" type="text" name="slug" value="{{ site.slug }}" form="form-{{ site.id }}" pattern="[a-z0-9\-]{3,50}" required>
+                            </td>
+                            <td class="col-name">
+                                <span class="cell-view">{{ site.name }}</span>
+                                <input class="cell-edit" type="text" name="name" value="{{ site.name }}" form="form-{{ site.id }}" required>
+                            </td>
+                            <td class="col-url">
+                                <span class="cell-view"><a href="{{ site.url }}" target="_blank" rel="noopener">{{ site.url }}</a></span>
+                                <input class="cell-edit" type="url" name="url" value="{{ site.url }}" form="form-{{ site.id }}" required>
+                            </td>
+                            <td class="col-desc">
+                                <span class="cell-view">{{ site.description.as_deref().unwrap_or("-") }}</span>
+                                <input class="cell-edit" type="text" name="description" value="{{ site.description.as_deref().unwrap_or_default() }}" form="form-{{ site.id }}">
+                            </td>
+                            <td class="col-status">
+                                {% if site.is_online %}
+                                <span class="badge badge-up">up</span>
+                                {% else %}
+                                <span class="badge badge-down">down</span>
+                                {% endif %}
+                            </td>
+                            <td class="col-enabled">
+                                <form action="/admin/sites/{{ site.id }}/toggle" method="POST" style="display:inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    {% if site.enabled %}
+                                    <button type="submit" class="badge badge-on btn-toggle" title="disable">✓</button>
+                                    {% else %}
+                                    <button type="submit" class="badge badge-off btn-toggle" title="enable">✗</button>
+                                    {% endif %}
+                                </form>
+                            </td>
+                            <td class="col-actions">
+                                <div class="action-group">
+                                    <button type="button" class="btn btn-sm btn-edit cell-view" onclick="editRow(this)">edit</button>
+                                    <button type="submit" form="form-{{ site.id }}" class="btn btn-sm cell-edit">save</button>
+                                    <form action="/admin/sites/{{ site.id }}/update" method="POST" id="form-{{ site.id }}" style="display:none">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    </form>
+                                    <form action="/admin/sites/{{ site.id }}/delete" method="POST" style="display:inline" onsubmit="return confirm('delete this site?')">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-sm danger">del</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <script>
+            function editRow(btn) {
+                var row = btn.closest('tr');
+                row.classList.add('editing');
+            }
+
+            (function() {
+                var tbody = document.querySelector('.admin-table tbody');
+                var dragged = null;
+
+                function siteRows() {
+                    return Array.from(tbody.querySelectorAll('tr[data-id]'));
+                }
+
+                tbody.addEventListener('dragstart', function(e) {
+                    var row = e.target.closest('tr[data-id]');
+                    if (!row) return;
+                    dragged = row;
+                    row.classList.add('dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                });
+
+                tbody.addEventListener('dragend', function() {
+                    if (dragged) dragged.classList.remove('dragging');
+                    dragged = null;
+                    tbody.querySelectorAll('.drag-over').forEach(function(r) {
+                        r.classList.remove('drag-over');
+                    });
+                });
+
+                tbody.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    var target = e.target.closest('tr[data-id]');
+                    if (!target || target === dragged) return;
+                    tbody.querySelectorAll('.drag-over').forEach(function(r) {
+                        r.classList.remove('drag-over');
+                    });
+                    target.classList.add('drag-over');
+                });
+
+                tbody.addEventListener('dragleave', function(e) {
+                    var target = e.target.closest('tr[data-id]');
+                    if (target) target.classList.remove('drag-over');
+                });
+
+                tbody.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    var target = e.target.closest('tr[data-id]');
+                    if (!target || !dragged || target === dragged) return;
+                    target.classList.remove('drag-over');
+
+                    var rows = siteRows();
+                    var fromIdx = rows.indexOf(dragged);
+                    var toIdx = rows.indexOf(target);
+                    if (fromIdx < toIdx) {
+                        target.after(dragged);
+                    } else {
+                        target.before(dragged);
+                    }
+
+                    var ids = siteRows().map(function(r) { return r.dataset.id; });
+                    var csrf = document.cookie.split('; ')
+                        .find(function(c) { return c.startsWith('csrf_token='); });
+                    var token = csrf ? csrf.split('=')[1] : '';
+
+                    fetch('/admin/sites/reorder', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-Token': token
+                        },
+                        body: JSON.stringify({ ids: ids })
+                    }).then(function(res) {
+                        if (!res.ok) location.reload();
+                    });
+                });
+            })();
+        </script>
+{% endblock %}

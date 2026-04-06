@@ -4,12 +4,28 @@ version = "1.0.0"
 edition = "2024"
 
 [dependencies]
-tokio = { version = "1", features = ["full"] }
+arc-swap = "1.9"
+argon2 = "0.5"
+askama = "0.15"
 axum = "0.8"
+axum-extra = { version = "0.10", features = ["cookie"] }
+chrono = { version = "0.4", default-features = false, features = ["serde"] }
+dashmap = "6"
+dotenvy = "0.15"
+fastrand = "2.4"
+getrandom = "0.3"
+jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 mimalloc = "0.1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+scraper = "0.23"
 serde = { version = "1", features = ["derive"] }
 socket2 = "0.6"
-dotenvy = "0.15"
-sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "macros", "uuid"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "macros", "uuid", "ipnetwork", "chrono"] }
+tokio = { version = "1", features = ["full"] }
+tokio-util = "0.7.18"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["fs", "set-header"] }
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1", features = ["v4", "serde"] }

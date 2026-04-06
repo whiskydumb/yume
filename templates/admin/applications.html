@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}applications{% endblock %}
+{% block content %}
+        <div class="admin-dashboard">
+            <div class="admin-header-row">
+                <h2>applications</h2>
+                <div class="admin-nav">
+                    <a href="/admin/sites" class="btn btn-sm">sites</a>
+                    <form action="/admin/logout" method="POST" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-sm">logout</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="collapse-section open">
+                <button type="button" class="collapse-header" onclick="toggleSection(this)">
+                    <span class="collapse-arrow">▼</span> pending ({{ pending.len() }})
+                </button>
+                <div class="collapse-body">
+                    {% if pending.is_empty() %}
+                    <p class="empty-msg">no pending applications</p>
+                    {% else %}
+                    <div class="admin-table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>name</th>
+                                    <th>slug</th>
+                                    <th>url</th>
+                                    <th>contact</th>
+                                    <th>description</th>
+                                    <th class="col-actions">actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for app in pending %}
+                                <tr>
+                                    <td>{{ app.name }}</td>
+                                    <td>{{ app.slug }}</td>
+                                    <td><a href="{{ app.url }}" target="_blank" rel="noopener">{{ app.url }}</a></td>
+                                    <td>{{ app.contact }}</td>
+                                    <td>{{ app.description.as_deref().unwrap_or("-") }}</td>
+                                    <td class="col-actions">
+                                        <div class="action-group">
+                                            <form action="/admin/applications/{{ app.id }}/approve" method="POST" style="display:inline">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                <button type="submit" class="btn btn-sm btn-approve">approve</button>
+                                            </form>
+                                            <form action="/admin/applications/{{ app.id }}/reject" method="POST" style="display:inline" onsubmit="return confirm('reject this application?')">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                <button type="submit" class="btn btn-sm danger">reject</button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="collapse-section">
+                <button type="button" class="collapse-header" onclick="toggleSection(this)">
+                    <span class="collapse-arrow">▶</span> recent resolved ({{ recent.len() }})
+                </button>
+                <div class="collapse-body" style="display:none">
+                    {% if recent.is_empty() %}
+                    <p class="empty-msg">no resolved applications yet</p>
+                    {% else %}
+                    <div class="admin-table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>name</th>
+                                    <th>slug</th>
+                                    <th>url</th>
+                                    <th>contact</th>
+                                    <th class="col-status">status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for app in recent %}
+                                <tr>
+                                    <td>{{ app.name }}</td>
+                                    <td>{{ app.slug }}</td>
+                                    <td><a href="{{ app.url }}" target="_blank" rel="noopener">{{ app.url }}</a></td>
+                                    <td>{{ app.contact }}</td>
+                                    <td class="col-status">
+                                        {% if app.status == "approved" %}
+                                        <span class="badge badge-up">approved</span>
+                                        {% else %}
+                                        <span class="badge badge-down">rejected</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="collapse-section">
+                <button type="button" class="collapse-header" onclick="toggleSection(this)">
+                    <span class="collapse-arrow">▶</span> all applications ({{ all.len() }})
+                </button>
+                <div class="collapse-body" style="display:none">
+                    {% if all.is_empty() %}
+                    <p class="empty-msg">no applications</p>
+                    {% else %}
+                    <div class="admin-table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>name</th>
+                                    <th>slug</th>
+                                    <th>url</th>
+                                    <th class="col-status">status</th>
+                                    <th>date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for app in all %}
+                                <tr>
+                                    <td>{{ app.name }}</td>
+                                    <td>{{ app.slug }}</td>
+                                    <td><a href="{{ app.url }}" target="_blank" rel="noopener">{{ app.url }}</a></td>
+                                    <td class="col-status">
+                                        {% if app.status == "pending" %}
+                                        <span class="badge badge-pending">pending</span>
+                                        {% else if app.status == "approved" %}
+                                        <span class="badge badge-up">approved</span>
+                                        {% else %}
+                                        <span class="badge badge-down">rejected</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ app.created_at.format("%Y-%m-%d %H:%M") }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <script>
+            function toggleSection(btn) {
+                var section = btn.parentElement;
+                var body = section.querySelector('.collapse-body');
+                var arrow = btn.querySelector('.collapse-arrow');
+                if (body.style.display === 'none') {
+                    body.style.display = '';
+                    arrow.textContent = '▼';
+                    section.classList.add('open');
+                } else {
+                    body.style.display = 'none';
+                    arrow.textContent = '▶';
+                    section.classList.remove('open');
+                }
+            }
+        </script>
+{% endblock %}

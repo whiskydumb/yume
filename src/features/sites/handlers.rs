@@ -1,46 +1,43 @@
 use super::cache::SiteCache;
+use crate::error::AppError;
 use axum::{
     Json,
     extract::{Path, State},
     response::Redirect,
 };
+use std::sync::Arc;
 
-pub async fn next(State(cache): State<SiteCache>, Path(slug): Path<String>) -> Result<Redirect, (axum::http::StatusCode, &'static str)> {
-    let sites = cache.read().await;
+pub async fn next(State(cache): State<SiteCache>, Path(slug): Path<String>) -> Result<Redirect, AppError> {
+    let sites = cache.load();
 
-    let idx = sites.iter().position(|s| s.slug == slug)
-        .ok_or((axum::http::StatusCode::NOT_FOUND, "site not found"))?;
+    let idx = sites.iter().position(|s| *s.slug == *slug)
+        .ok_or(AppError::NotFound)?;
 
     let next = &sites[(idx + 1) % sites.len()];
     Ok(Redirect::to(&next.url))
 }
 
-pub async fn prev(State(cache): State<SiteCache>, Path(slug): Path<String>) -> Result<Redirect, (axum::http::StatusCode, &'static str)> {
-    let sites = cache.read().await;
+pub async fn prev(State(cache): State<SiteCache>, Path(slug): Path<String>) -> Result<Redirect, AppError> {
+    let sites = cache.load();
 
-    let idx = sites.iter().position(|s| s.slug == slug)
-        .ok_or((axum::http::StatusCode::NOT_FOUND, "site not found"))?;
+    let idx = sites.iter().position(|s| *s.slug == *slug)
+        .ok_or(AppError::NotFound)?;
 
     let prev = &sites[(idx + sites.len() - 1) % sites.len()];
     Ok(Redirect::to(&prev.url))
 }
 
-pub async fn random(State(cache): State<SiteCache>) -> Result<Redirect, (axum::http::StatusCode, &'static str)> {
-    let sites = cache.read().await;
+pub async fn random(State(cache): State<SiteCache>) -> Result<Redirect, AppError> {
+    let sites = cache.load();
 
     if sites.is_empty() {
-        return Err((axum::http::StatusCode::NOT_FOUND, "no sites"));
+        return Err(AppError::NotFound);
     }
 
-    let idx = (std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .subsec_nanos() as usize) % sites.len();
-
+    let idx = fastrand::usize(..sites.len());
     Ok(Redirect::to(&sites[idx].url))
 }
 
-pub async fn list(State(cache): State<SiteCache>) -> Json<Vec<super::models::Site>> {
-    let sites = cache.read().await;
-    Json(sites.clone())
+pub async fn list(State(cache): State<SiteCache>) -> Json<Arc<Vec<super::models::Site>>> {
+    Json(cache.load_full())
 }

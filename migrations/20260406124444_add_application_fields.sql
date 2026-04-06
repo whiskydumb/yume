@@ -1,0 +1,3 @@
+ALTER TABLE applications ADD COLUMN slug VARCHAR(50) NOT NULL DEFAULT '';
+ALTER TABLE applications ADD COLUMN description TEXT;
+ALTER TABLE applications ALTER COLUMN slug DROP DEFAULT;

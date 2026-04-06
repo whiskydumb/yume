@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+        <div class="about">
+            <h2>about</h2>
+            <p>a webring connecting personal sites, blogs, and digital gardens. click through the ring to discover something new.</p>
+        </div>
+
+        <div class="about">
+            <h2>rules</h2>
+            <ul>
+                <li>no hate speech, racism, sexism, or any form of bigotry</li>
+                <li>no advertisement-focused or SEO-farm sites</li>
+                <li>no illegal content of any kind</li>
+                <li>site must be a personal project - not a corporate page</li>
+            </ul>
+            <p>we reserve the right to remove any site at our discretion.</p>
+        </div>
+
+        <div class="about">
+            <h2>how to join</h2>
+            <p>add navigation links to your site, then <a href="/apply">submit an application</a>. once approved, you'll appear in the ring.</p>
+            <pre><code>
+            &lt;a href="{{ base_url }}/YOUR-SLUG/prev"&gt;&lt;&lt;/a&gt;
+            &lt;a href="{{ base_url }}"&gt;yume webring&lt;/a&gt;
+            &lt;a href="{{ base_url }}/YOUR-SLUG/next"&gt;&gt;&lt;/a&gt;
+            </code></pre>
+        </div>
+        <div class="site-list">
+            <h2>sites in the ring</h2>
+            {% for site in &*sites %}
+            <a href="{{ site.url }}" target="_blank" class="site-card">
+                <div class="site-icon">
+                    {% if let Some(fav) = site.favicon %}
+                    <img src="/data/{{ fav }}" alt="" width="24" height="24" loading="lazy">
+                    {% else %}
+                    🌐
+                    {% endif %}
+                </div>
+                <div class="site-info">
+                    <span class="site-name">{{ site.name }}</span>
+                    {% if let Some(desc) = site.description %}
+                    <span class="site-desc">{{ desc }}</span>
+                    {% endif %}
+                </div>
+                <div class="site-arrow">:3</div>
+            </a>
+            {% endfor %}
+        </div>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}admin login{% endblock %}
+{% block content %}
+        <div class="centered-form login-form">
+            <h2>admin</h2>
+            <form method="POST" action="/admin/login">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="password" name="password" placeholder="password" autofocus>
+                <button type="submit">login</button>
+            </form>
+        </div>
+{% endblock %}

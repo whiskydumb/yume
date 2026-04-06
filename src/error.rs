@@ -2,21 +2,37 @@ use axum::{http::StatusCode, response::{IntoResponse, Response}};
 
 pub type Result<T> = std::result::Result<T, AppError>;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum AppError {
     Internal(String),
+    BadRequest(&'static str),
     NotFound,
     Unauthorized,
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, message) = match self {
-            AppError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
-            AppError::NotFound => (StatusCode::NOT_FOUND, "not found".to_string()),
-            AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized".to_string()),
-        };
+        match self {
+            AppError::Internal(msg) => {
+                tracing::error!(error = %msg, "internal error");
+                (StatusCode::INTERNAL_SERVER_ERROR, "internal error").into_response()
+            }
+            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg).into_response(),
+            AppError::NotFound => (StatusCode::NOT_FOUND, "not found").into_response(),
+            AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized").into_response(),
+        }
+    }
+}
 
-        (status, message).into_response()
+impl From<askama::Error> for AppError {
+    fn from(e: askama::Error) -> Self {
+        Self::Internal(e.to_string())
+    }
+}
+
+impl From<sqlx::Error> for AppError {
+    fn from(e: sqlx::Error) -> Self {
+        Self::Internal(e.to_string())
     }
 }
