@@ -10,11 +10,7 @@ use axum_extra::extract::cookie::Cookie;
 const CSRF_COOKIE: &str = "csrf_token";
 const CSRF_FIELD: &str = "csrf_token";
 
-pub async fn set_token(
-    jar: CookieJar,
-    mut request: Request,
-    next: Next,
-) -> Response {
+pub async fn set_token(jar: CookieJar, mut request: Request, next: Next) -> Response {
     let (jar, token) = match jar.get(CSRF_COOKIE).map(|c| c.value().to_owned()) {
         Some(token) => (jar, token),
         None => {
@@ -34,11 +30,7 @@ pub async fn set_token(
     (jar, response).into_response()
 }
 
-pub async fn verify(
-    jar: CookieJar,
-    request: Request,
-    next: Next,
-) -> Response {
+pub async fn verify(jar: CookieJar, request: Request, next: Next) -> Response {
     if request.method() != axum::http::Method::POST {
         return next.run(request).await;
     }
@@ -54,8 +46,13 @@ pub async fn verify(
         Err(_) => return (StatusCode::BAD_REQUEST, "request body too large").into_response(),
     };
 
-    let token = form_field_value(&bytes, CSRF_FIELD)
-        .or_else(|| parts.headers.get("x-csrf-token").and_then(|v| v.to_str().ok()).map(String::from));
+    let token = form_field_value(&bytes, CSRF_FIELD).or_else(|| {
+        parts
+            .headers
+            .get("x-csrf-token")
+            .and_then(|v| v.to_str().ok())
+            .map(String::from)
+    });
 
     match token {
         Some(t) if constant_time_eq(t.as_bytes(), cookie_token.as_bytes()) => {
@@ -69,10 +66,10 @@ pub async fn verify(
 fn form_field_value(body: &[u8], field: &str) -> Option<String> {
     let body_str = std::str::from_utf8(body).ok()?;
     for pair in body_str.split('&') {
-        if let Some((key, value)) = pair.split_once('=') {
-            if key == field {
-                return Some(urldecode(value));
-            }
+        if let Some((key, value)) = pair.split_once('=')
+            && key == field
+        {
+            return Some(urldecode(value));
         }
     }
     None
@@ -84,8 +81,8 @@ fn urldecode(s: &str) -> String {
     let mut chars = s.bytes();
     while let Some(b) = chars.next() {
         if b == b'%' {
-            let hi = chars.next().and_then(|c| hex_val(c));
-            let lo = chars.next().and_then(|c| hex_val(c));
+            let hi = chars.next().and_then(hex_val);
+            let lo = chars.next().and_then(hex_val);
             if let (Some(h), Some(l)) = (hi, lo) {
                 result.push(h << 4 | l);
             }
@@ -109,7 +106,10 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
     }
-    a.iter().zip(b.iter()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+    a.iter()
+        .zip(b.iter())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
 }
 
 fn generate_token() -> String {

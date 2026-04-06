@@ -55,10 +55,10 @@ fn extract_favicon_href(html: &str, base_url: &str) -> Option<String> {
 fn score_favicon(sizes: Option<&str>, href: &str) -> i32 {
     let mut score = 0i32;
 
-    if let Some(sizes) = sizes {
-        if let Some(dim) = sizes.split('x').next().and_then(|s| s.parse::<i32>().ok()) {
-            score += dim;
-        }
+    if let Some(sizes) = sizes
+        && let Some(dim) = sizes.split('x').next().and_then(|s| s.parse::<i32>().ok())
+    {
+        score += dim;
     }
 
     let lower = href.to_lowercase();
@@ -80,16 +80,20 @@ fn resolve_url(base: &str, href: &str) -> String {
         return href.to_string();
     }
     if href.starts_with("//") {
-        let scheme = if base.starts_with("https") { "https:" } else { "http:" };
+        let scheme = if base.starts_with("https") {
+            "https:"
+        } else {
+            "http:"
+        };
         return format!("{scheme}{href}");
     }
-    if href.starts_with('/') {
-        if let Some(idx) = base.find("://") {
-            let after_scheme = &base[idx + 3..];
-            let origin_end = after_scheme.find('/').unwrap_or(after_scheme.len());
-            let origin = &base[..idx + 3 + origin_end];
-            return format!("{origin}{href}");
-        }
+    if href.starts_with('/')
+        && let Some(idx) = base.find("://")
+    {
+        let after_scheme = &base[idx + 3..];
+        let origin_end = after_scheme.find('/').unwrap_or(after_scheme.len());
+        let origin = &base[..idx + 3 + origin_end];
+        return format!("{origin}{href}");
     }
     format!("{base}/{href}")
 }

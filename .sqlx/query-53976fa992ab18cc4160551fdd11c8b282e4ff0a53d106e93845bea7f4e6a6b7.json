@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE sites SET position = t.new_pos\n         FROM unnest($1::uuid[], $2::int[]) AS t(id, new_pos)\n         WHERE sites.id = t.id",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Int4Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "53976fa992ab18cc4160551fdd11c8b282e4ff0a53d106e93845bea7f4e6a6b7"
+}

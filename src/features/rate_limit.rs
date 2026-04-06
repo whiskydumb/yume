@@ -12,7 +12,9 @@ use std::sync::LazyLock;
 use std::time::Instant;
 
 static TRUST_PROXY: LazyLock<bool> = LazyLock::new(|| {
-    std::env::var("TRUST_PROXY").map(|v| v == "1" || v == "true").unwrap_or(false)
+    std::env::var("TRUST_PROXY")
+        .map(|v| v == "1" || v == "true")
+        .unwrap_or(false)
 });
 
 pub fn real_ip(headers: &axum::http::HeaderMap, fallback: IpAddr) -> IpAddr {

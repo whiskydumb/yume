@@ -11,8 +11,8 @@ use axum::{
     response::{Html, Response},
 };
 use axum_extra::extract::cookie::CookieJar;
-use std::net::SocketAddr;
 use sqlx::types::ipnetwork;
+use std::net::SocketAddr;
 
 use super::models::ApplyForm;
 
@@ -37,7 +37,11 @@ pub async fn submit(
     let slug = form.slug.trim();
     let url = form.url.trim();
     let contact = form.contact.trim();
-    let description = form.description.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    let description = form
+        .description
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
 
     validate_name(name)?;
     validate_slug(slug)?;
@@ -65,5 +69,9 @@ pub async fn submit(
         };
     }
 
-    Ok(flash::redirect(jar, Flash::Success("application submitted"), "/apply"))
+    Ok(flash::redirect(
+        jar,
+        Flash::Success("application submitted"),
+        "/apply",
+    ))
 }

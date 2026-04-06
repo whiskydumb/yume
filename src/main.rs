@@ -1,9 +1,9 @@
-mod state;
-mod features;
 mod error;
+mod features;
+mod state;
 
 use axum::Router;
-use axum::http::{header, HeaderValue};
+use axum::http::{HeaderValue, header};
 use socket2::{Domain, Protocol, Socket, Type};
 use sqlx::postgres::PgPoolOptions;
 use state::AppState;
@@ -42,7 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (non_blocking, _guard) = tracing_appender::non_blocking(std::io::stdout());
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"))
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
         .compact()
         .with_writer(non_blocking)
@@ -97,24 +97,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let scan_notify = Arc::new(tokio::sync::Notify::new());
     let shutdown = CancellationToken::new();
 
-    let state = AppState { db: db.clone(), site_cache: site_cache.clone(), jwt_secret, admin_password_hash, jwt_expiry_hours, base_url, scan_notify: scan_notify.clone() };
+    let state = AppState {
+        db: db.clone(),
+        site_cache: site_cache.clone(),
+        jwt_secret,
+        admin_password_hash,
+        jwt_expiry_hours,
+        base_url,
+        scan_notify: scan_notify.clone(),
+    };
 
-    tokio::spawn(features::checker::worker::run(db.clone(), site_cache, scan_notify, shutdown.clone()));
+    tokio::spawn(features::checker::worker::run(
+        db.clone(),
+        site_cache,
+        scan_notify,
+        shutdown.clone(),
+    ));
 
     let app = Router::new()
         .merge(features::pages::router())
         .merge(features::auth::router(state.clone()))
         .merge(features::sites::router())
         .merge(features::applications::router())
-        .nest_service("/static",
+        .nest_service(
+            "/static",
             ServiceBuilder::new()
                 .layer(SetResponseHeaderLayer::overriding(
                     header::CACHE_CONTROL,
                     HeaderValue::from_static("public, max-age=86400"),
                 ))
-                .service(ServeDir::new("static"))
+                .service(ServeDir::new("static")),
         )
-        .nest_service("/data",
+        .nest_service(
+            "/data",
             ServiceBuilder::new()
                 .layer(SetResponseHeaderLayer::overriding(
                     header::CACHE_CONTROL,
@@ -128,18 +143,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     header::CONTENT_SECURITY_POLICY,
                     HeaderValue::from_static("default-src 'none'; style-src 'unsafe-inline'"),
                 ))
-                .service(ServeDir::new("data"))
+                .service(ServeDir::new("data")),
         )
-        .with_state(state);
+        .with_state(state)
+        .layer(SetResponseHeaderLayer::overriding(
+            header::STRICT_TRANSPORT_SECURITY,
+            HeaderValue::from_static("max-age=31536000"),
+        ));
 
     let shutdown_token = shutdown.clone();
-    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
-        .with_graceful_shutdown(async move {
-            shutdown_signal().await;
-            println!("\n🌸 shutting down...");
-            shutdown_token.cancel();
-        })
-        .await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(async move {
+        shutdown_signal().await;
+        println!("\n🌸 shutting down...");
+        shutdown_token.cancel();
+    })
+    .await?;
 
     db.close().await;
 
@@ -151,9 +173,8 @@ async fn shutdown_signal() {
 
     #[cfg(unix)]
     {
-        let mut sigterm = tokio::signal::unix::signal(
-            tokio::signal::unix::SignalKind::terminate(),
-        ).expect("failed to install SIGTERM handler");
+        let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler");
         tokio::select! {
             _ = ctrl_c => {},
             _ = sigterm.recv() => {},

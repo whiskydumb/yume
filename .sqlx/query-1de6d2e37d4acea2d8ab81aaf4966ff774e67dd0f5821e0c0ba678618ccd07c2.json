@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO sites (slug, name, url, description, position)\n         VALUES ($1, $2, $3, $4, COALESCE((SELECT MAX(position) FROM sites), 0) + 1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1de6d2e37d4acea2d8ab81aaf4966ff774e67dd0f5821e0c0ba678618ccd07c2"
+}

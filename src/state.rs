@@ -30,3 +30,9 @@ impl FromRef<AppState> for BaseUrl {
         state.base_url.clone()
     }
 }
+
+impl FromRef<AppState> for PgPool {
+    fn from_ref(state: &AppState) -> PgPool {
+        state.db.clone()
+    }
+}

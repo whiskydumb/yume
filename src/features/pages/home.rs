@@ -19,5 +19,11 @@ pub async fn index(
     State(base_url): State<BaseUrl>,
 ) -> error::Result<Html<String>> {
     let data = cache.load_full();
-    Ok(Html((IndexTemplate { sites: data.sites.clone(), base_url: base_url.0 }).render()?))
+    Ok(Html(
+        (IndexTemplate {
+            sites: data.sites.clone(),
+            base_url: base_url.0,
+        })
+        .render()?,
+    ))
 }

@@ -48,7 +48,9 @@ pub async fn login_post(
                 return None;
             }
         };
-        Argon2::default().verify_password(password.as_bytes(), &parsed).ok()?;
+        Argon2::default()
+            .verify_password(password.as_bytes(), &parsed)
+            .ok()?;
         Some(())
     })
     .await
@@ -57,13 +59,18 @@ pub async fn login_post(
     .is_some();
 
     if !valid {
-        return Ok(flash::redirect(jar, Flash::Error("invalid password"), "/admin/login"));
+        return Ok(flash::redirect(
+            jar,
+            Flash::Error("invalid password"),
+            "/admin/login",
+        ));
     }
 
     let expiry = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
-        .as_secs() + state.jwt_expiry_hours * 3600;
+        .as_secs()
+        + state.jwt_expiry_hours * 3600;
 
     let claims = super::models::Claims {
         sub: "admin".into(),
@@ -82,7 +89,9 @@ pub async fn login_post(
         .secure(true)
         .same_site(axum_extra::extract::cookie::SameSite::Lax)
         .path("/")
-        .max_age(time::Duration::seconds((state.jwt_expiry_hours * 3600) as i64))
+        .max_age(time::Duration::seconds(
+            (state.jwt_expiry_hours * 3600) as i64,
+        ))
         .build();
 
     Ok((jar.add(cookie), Redirect::to("/admin")).into_response())
@@ -112,7 +121,13 @@ pub async fn dashboard(
     .fetch_all(&state.db)
     .await?;
 
-    Ok(Html((DashboardTemplate { sites, csrf_token: csrf.0 }).render()?))
+    Ok(Html(
+        (DashboardTemplate {
+            sites,
+            csrf_token: csrf.0,
+        })
+        .render()?,
+    ))
 }
 
 #[derive(Template)]
@@ -144,7 +159,15 @@ pub async fn applications(
 
     let recent: Vec<Application> = resolved.into_iter().take(5).collect();
 
-    Ok(Html((ApplicationsTemplate { pending, recent, all: rows, csrf_token: csrf.0 }).render()?))
+    Ok(Html(
+        (ApplicationsTemplate {
+            pending,
+            recent,
+            all: rows,
+            csrf_token: csrf.0,
+        })
+        .render()?,
+    ))
 }
 
 pub async fn logout(jar: CookieJar) -> (CookieJar, Redirect) {
@@ -173,7 +196,11 @@ pub async fn add_site(
     let slug = form.slug.trim();
     let name = form.name.trim();
     let url = form.url.trim();
-    let description = form.description.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    let description = form
+        .description
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
 
     validate_slug(slug)?;
     validate_name(name)?;
@@ -194,9 +221,14 @@ pub async fn add_site(
         description,
     )
     .execute(&mut *tx)
-    .await {
+    .await
+    {
         return match crate::error::is_unique_violation(&e) {
-            true => Ok(flash::redirect(jar, Flash::Error("slug already exists"), "/admin/sites")),
+            true => Ok(flash::redirect(
+                jar,
+                Flash::Error("slug already exists"),
+                "/admin/sites",
+            )),
             false => Err(e.into()),
         };
     }
@@ -225,7 +257,11 @@ pub async fn update_site(
     let slug = form.slug.trim();
     let name = form.name.trim();
     let url = form.url.trim();
-    let description = form.description.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    let description = form
+        .description
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
 
     validate_slug(slug)?;
     validate_name(name)?;
@@ -248,7 +284,11 @@ pub async fn update_site(
 
     cache::reload(&state.site_cache, &state.db).await?;
 
-    Ok(flash::redirect(jar, Flash::Success("site updated"), "/admin"))
+    Ok(flash::redirect(
+        jar,
+        Flash::Success("site updated"),
+        "/admin",
+    ))
 }
 
 pub async fn toggle_site(
@@ -256,12 +296,9 @@ pub async fn toggle_site(
     jar: CookieJar,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> error::Result<Response> {
-    let result = sqlx::query!(
-        "UPDATE sites SET enabled = NOT enabled WHERE id = $1",
-        id,
-    )
-    .execute(&state.db)
-    .await?;
+    let result = sqlx::query!("UPDATE sites SET enabled = NOT enabled WHERE id = $1", id,)
+        .execute(&state.db)
+        .await?;
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
@@ -269,7 +306,11 @@ pub async fn toggle_site(
 
     cache::reload(&state.site_cache, &state.db).await?;
 
-    Ok(flash::redirect(jar, Flash::Success("site toggled"), "/admin"))
+    Ok(flash::redirect(
+        jar,
+        Flash::Success("site toggled"),
+        "/admin",
+    ))
 }
 
 #[derive(Deserialize)]
@@ -322,7 +363,11 @@ pub async fn delete_site(
 
     cache::reload(&state.site_cache, &state.db).await?;
 
-    Ok(flash::redirect(jar, Flash::Success("site deleted"), "/admin"))
+    Ok(flash::redirect(
+        jar,
+        Flash::Success("site deleted"),
+        "/admin",
+    ))
 }
 
 pub async fn approve_application(
@@ -353,9 +398,14 @@ pub async fn approve_application(
         app.description,
     )
     .execute(&mut *tx)
-    .await {
+    .await
+    {
         return match crate::error::is_unique_violation(&e) {
-            true => Ok(flash::redirect(jar, Flash::Error("slug already exists"), "/admin/applications")),
+            true => Ok(flash::redirect(
+                jar,
+                Flash::Error("slug already exists"),
+                "/admin/applications",
+            )),
             false => Err(e.into()),
         };
     }
@@ -370,7 +420,11 @@ pub async fn approve_application(
     tx.commit().await?;
     cache::reload(&state.site_cache, &state.db).await?;
 
-    Ok(flash::redirect(jar, Flash::Success("application approved"), "/admin/applications"))
+    Ok(flash::redirect(
+        jar,
+        Flash::Success("application approved"),
+        "/admin/applications",
+    ))
 }
 
 pub async fn reject_application(
@@ -389,5 +443,9 @@ pub async fn reject_application(
         return Err(AppError::NotFound);
     }
 
-    Ok(flash::redirect(jar, Flash::Success("application rejected"), "/admin/applications"))
+    Ok(flash::redirect(
+        jar,
+        Flash::Success("application rejected"),
+        "/admin/applications",
+    ))
 }

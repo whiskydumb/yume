@@ -22,7 +22,12 @@ struct SiteRow {
     favicon: Option<String>,
 }
 
-pub async fn run(db: PgPool, cache: crate::features::sites::cache::SiteCache, notify: Arc<Notify>, shutdown: CancellationToken) {
+pub async fn run(
+    db: PgPool,
+    cache: crate::features::sites::cache::SiteCache,
+    notify: Arc<Notify>,
+    shutdown: CancellationToken,
+) {
     let client = Client::builder()
         .user_agent(USER_AGENT)
         .timeout(Duration::from_secs(CHECK_TIMEOUT_SECS))
@@ -77,21 +82,21 @@ pub async fn run(db: PgPool, cache: crate::features::sites::cache::SiteCache, no
                     status_changed.store(true, Ordering::Relaxed);
                 }
 
-                if needs_favicon {
-                    if let Some(path) = crate::features::favicon::fetch(&client, site_id, &site_url).await {
-                        if let Err(e) = sqlx::query!(
-                            "UPDATE sites SET favicon = $1 WHERE id = $2",
-                            path,
-                            site_id
-                        )
-                        .execute(&db2)
-                        .await
-                        {
-                            tracing::error!(error = %e, site_id = %site_id, "favicon: failed to save path");
-                        } else {
-                            // tracing::info!(site_id = %site_id, path = %path, "favicon saved");
-                            cache_changed.store(true, Ordering::Relaxed);
-                        }
+                if needs_favicon
+                    && let Some(path) = crate::features::favicon::fetch(&client, site_id, &site_url).await
+                {
+                    if let Err(e) = sqlx::query!(
+                        "UPDATE sites SET favicon = $1 WHERE id = $2",
+                        path,
+                        site_id
+                    )
+                    .execute(&db2)
+                    .await
+                    {
+                        tracing::error!(error = %e, site_id = %site_id, "favicon: failed to save path");
+                    } else {
+                        // tracing::info!(site_id = %site_id, path = %path, "favicon saved");
+                        cache_changed.store(true, Ordering::Relaxed);
                     }
                 }
             });
@@ -99,10 +104,10 @@ pub async fn run(db: PgPool, cache: crate::features::sites::cache::SiteCache, no
 
         while set.join_next().await.is_some() {}
 
-        if status_changed.load(Ordering::Relaxed) || cache_changed.load(Ordering::Relaxed) {
-            if let Err(e) = crate::features::sites::cache::reload(&cache, &db).await {
-                tracing::error!(error = %e, "checker: failed to reload cache");
-            }
+        if (status_changed.load(Ordering::Relaxed) || cache_changed.load(Ordering::Relaxed))
+            && let Err(e) = crate::features::sites::cache::reload(&cache, &db).await
+        {
+            tracing::error!(error = %e, "checker: failed to reload cache");
         }
     }
 }
@@ -117,7 +122,10 @@ async fn fetch_sites(db: &PgPool) -> Result<Vec<SiteRow>, sqlx::Error> {
 }
 
 async fn check_site(client: &Client, db: &PgPool, site: SiteRow) -> bool {
-    let ok = client.get(&site.url).send().await
+    let ok = client
+        .get(&site.url)
+        .send()
+        .await
         .map(|r| r.status().is_success() || r.status().is_redirection())
         .unwrap_or(false);
 

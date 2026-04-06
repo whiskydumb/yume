@@ -1,10 +1,10 @@
+pub mod applications;
 pub mod auth;
 pub mod checker;
 pub mod csrf;
 pub mod favicon;
 pub mod flash;
-pub mod sites;
 pub mod pages;
-pub mod applications;
 pub mod rate_limit;
+pub mod sites;
 pub mod validation;
