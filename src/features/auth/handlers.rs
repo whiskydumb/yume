@@ -331,8 +331,24 @@ pub async fn reorder_sites(
         .execute(&mut *tx)
         .await?;
 
+    let total: i64 = sqlx::query_scalar!("SELECT COUNT(*) FROM sites")
+        .fetch_one(&mut *tx)
+        .await?
+        .unwrap_or(0);
+
+    if body.ids.len() as i64 != total {
+        return Err(AppError::BadRequest("ids must contain all sites"));
+    }
+
+    let mut seen = std::collections::HashSet::with_capacity(body.ids.len());
+    for id in &body.ids {
+        if !seen.insert(id) {
+            return Err(AppError::BadRequest("duplicate ids"));
+        }
+    }
+
     let positions: Vec<i32> = (1..=body.ids.len() as i32).collect();
-    sqlx::query!(
+    let result = sqlx::query!(
         "UPDATE sites SET position = t.new_pos
          FROM unnest($1::uuid[], $2::int[]) AS t(id, new_pos)
          WHERE sites.id = t.id",
@@ -341,6 +357,10 @@ pub async fn reorder_sites(
     )
     .execute(&mut *tx)
     .await?;
+
+    if result.rows_affected() != body.ids.len() as u64 {
+        return Err(AppError::BadRequest("unknown ids"));
+    }
 
     tx.commit().await?;
     cache::reload(&state.site_cache, &state.db).await?;
