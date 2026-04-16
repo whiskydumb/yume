@@ -1,4 +1,4 @@
-use reqwest::Client;
+﻿use reqwest::Client;
 use sqlx::PgPool;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -31,7 +31,55 @@ pub async fn run(
     let client = Client::builder()
         .user_agent(USER_AGENT)
         .timeout(Duration::from_secs(CHECK_TIMEOUT_SECS))
-        .redirect(reqwest::redirect::Policy::limited(3))
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            use std::net::ToSocketAddrs;
+
+            if attempt.previous().len() >= 3 {
+                return attempt.error(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "redirect limit exceeded",
+                ));
+            }
+            let url = attempt.url();
+            let scheme = url.scheme();
+            if scheme != "http" && scheme != "https" {
+                tracing::warn!(redirect_url = %url, "checker: redirect to non-http(s) scheme blocked");
+                return attempt.error(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "redirect blocked",
+                ));
+            }
+            let host = match url.host_str() {
+                Some(h) => h.to_owned(),
+                None => {
+                    tracing::warn!(redirect_url = %url, "checker: redirect with no host blocked");
+                    return attempt.error(std::io::Error::new(
+                        std::io::ErrorKind::PermissionDenied,
+                        "redirect blocked",
+                    ));
+                }
+            };
+            let is_public = tokio::task::block_in_place(|| {
+                match (host.as_str(), 80u16).to_socket_addrs() {
+                    Ok(addrs) => {
+                        let v: Vec<_> = addrs.collect();
+                        !v.is_empty()
+                            && v.iter()
+                                .all(|a| crate::features::favicon::is_public_addr(a.ip()))
+                    }
+                    Err(_) => false,
+                }
+            });
+            if is_public {
+                attempt.follow()
+            } else {
+                tracing::warn!(redirect_url = %url, "checker: redirect to non-public host blocked");
+                attempt.error(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "redirect blocked",
+                ))
+            }
+        }))
         .tcp_keepalive(Duration::from_secs(30))
         .pool_max_idle_per_host(4)
         .https_only(false)
@@ -83,7 +131,7 @@ pub async fn run(
                 }
 
                 if needs_favicon
-                    && let Some(path) = crate::features::favicon::fetch(&client, site_id, &site_url).await
+                    && let Some(path) = crate::features::favicon::fetch(site_id, &site_url).await
                 {
                     if let Err(e) = sqlx::query!(
                         "UPDATE sites SET favicon = $1 WHERE id = $2",
