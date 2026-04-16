@@ -17,24 +17,51 @@ static TRUST_PROXY: LazyLock<bool> = LazyLock::new(|| {
         .unwrap_or(false)
 });
 
-pub fn real_ip(headers: &axum::http::HeaderMap, fallback: IpAddr) -> IpAddr {
-    if !*TRUST_PROXY {
+static PROXY_HOPS: LazyLock<usize> = LazyLock::new(|| {
+    std::env::var("PROXY_HOPS")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(1)
+        .clamp(1, 10)
+});
+
+fn real_ip_inner(
+    headers: &axum::http::HeaderMap,
+    fallback: IpAddr,
+    trust_proxy: bool,
+    hops: usize,
+) -> IpAddr {
+    if !trust_proxy {
         return fallback;
     }
 
-    headers
+    if let Some(xff) = headers
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.split(',').next())
+    {
+        let parts: Vec<&str> = xff.split(',').map(|s| s.trim()).collect();
+        let ip_str = parts
+            .iter()
+            .rev()
+            .nth(hops - 1)
+            .or_else(|| parts.first())
+            .copied()
+            .unwrap_or("");
+        return ip_str.parse().unwrap_or(fallback);
+    }
+
+    headers
+        .get("x-real-ip")
+        .and_then(|v| v.to_str().ok())
         .and_then(|s| s.trim().parse().ok())
-        .or_else(|| {
-            headers
-                .get("x-real-ip")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|s| s.trim().parse().ok())
-        })
         .unwrap_or(fallback)
 }
+
+pub fn real_ip(headers: &axum::http::HeaderMap, fallback: IpAddr) -> IpAddr {
+    real_ip_inner(headers, fallback, *TRUST_PROXY, *PROXY_HOPS)
+}
+
+const MAX_ENTRIES: usize = 100_000;
 
 #[derive(Clone)]
 pub struct RateLimiter {
@@ -54,6 +81,16 @@ impl RateLimiter {
 
     fn check(&self, ip: IpAddr) -> bool {
         let now = Instant::now();
+
+        if self.state.len() >= MAX_ENTRIES {
+            self.state.retain(|_, (_, start)| {
+                now.duration_since(*start).as_secs() < self.window_secs
+            });
+            if self.state.len() >= MAX_ENTRIES && !self.state.contains_key(&ip) {
+                return false;
+            }
+        }
+
         let mut entry = self.state.entry(ip).or_insert((0, now));
         let (count, window_start) = entry.value_mut();
 
@@ -142,5 +179,70 @@ mod tests {
         assert!(limiter.check(ip2));
         assert!(!limiter.check(ip1));
         assert!(!limiter.check(ip2));
+    }
+
+    fn xff_headers(xff: &str) -> axum::http::HeaderMap {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("x-forwarded-for", xff.parse().unwrap());
+        headers
+    }
+
+    #[test]
+    fn real_ip_proxy_hops_1_returns_rightmost() {
+        // XFF = "1.1.1.1, 2.2.2.2, 3.3.3.3", hops=1 -> 3.3.3.3
+        let headers = xff_headers("1.1.1.1, 2.2.2.2, 3.3.3.3");
+        let fallback = IpAddr::V4(Ipv4Addr::new(0, 0, 0, 1));
+        assert_eq!(
+            real_ip_inner(&headers, fallback, true, 1),
+            IpAddr::V4(Ipv4Addr::new(3, 3, 3, 3))
+        );
+    }
+
+    #[test]
+    fn real_ip_proxy_hops_2_returns_second_from_right() {
+        // XFF = "1.1.1.1, 2.2.2.2, 3.3.3.3", hops=2 -> 2.2.2.2
+        let headers = xff_headers("1.1.1.1, 2.2.2.2, 3.3.3.3");
+        let fallback = IpAddr::V4(Ipv4Addr::new(0, 0, 0, 1));
+        assert_eq!(
+            real_ip_inner(&headers, fallback, true, 2),
+            IpAddr::V4(Ipv4Addr::new(2, 2, 2, 2))
+        );
+    }
+
+    #[test]
+    fn real_ip_proxy_hops_exceeds_xff_length_falls_back_to_leftmost() {
+        // XFF = "1.1.1.1, 2.2.2.2", hops=5 -> leftmost = 1.1.1.1
+        let headers = xff_headers("1.1.1.1, 2.2.2.2");
+        let fallback = IpAddr::V4(Ipv4Addr::new(0, 0, 0, 1));
+        assert_eq!(
+            real_ip_inner(&headers, fallback, true, 5),
+            IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1))
+        );
+    }
+
+    #[test]
+    fn real_ip_xff_absent_falls_back_to_x_real_ip() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("x-real-ip", "5.5.5.5".parse().unwrap());
+        let fallback = IpAddr::V4(Ipv4Addr::new(0, 0, 0, 1));
+        assert_eq!(
+            real_ip_inner(&headers, fallback, true, 1),
+            IpAddr::V4(Ipv4Addr::new(5, 5, 5, 5))
+        );
+    }
+
+    #[test]
+    fn rate_limiter_capacity_cap_triggers_cleanup() {
+        // long window so entries dont expire naturally during the test
+        let limiter = RateLimiter::new(10, 3600);
+        for i in 0..=(MAX_ENTRIES as u32) {
+            let ip = IpAddr::V4(Ipv4Addr::from(i + 1));
+            limiter.check(ip);
+        }
+        assert!(
+            limiter.state.len() <= MAX_ENTRIES,
+            "state grew beyond MAX_ENTRIES: {}",
+            limiter.state.len()
+        );
     }
 }
