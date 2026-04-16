@@ -6,6 +6,7 @@ use axum::{
 };
 use axum_extra::extract::CookieJar;
 use axum_extra::extract::cookie::Cookie;
+use subtle::ConstantTimeEq;
 
 const CSRF_COOKIE: &str = "csrf_token";
 const CSRF_FIELD: &str = "csrf_token";
@@ -55,7 +56,7 @@ pub async fn verify(jar: CookieJar, request: Request, next: Next) -> Response {
     });
 
     match token {
-        Some(t) if constant_time_eq(t.as_bytes(), cookie_token.as_bytes()) => {
+        Some(t) if bool::from(t.as_bytes().ct_eq(cookie_token.as_bytes())) => {
             let request = Request::from_parts(parts, axum::body::Body::from(bytes));
             next.run(request).await
         }
@@ -64,69 +65,63 @@ pub async fn verify(jar: CookieJar, request: Request, next: Next) -> Response {
 }
 
 fn form_field_value(body: &[u8], field: &str) -> Option<String> {
-    let body_str = std::str::from_utf8(body).ok()?;
-    for pair in body_str.split('&') {
-        if let Some((key, value)) = pair.split_once('=')
-            && key == field
-        {
-            return Some(urldecode(value));
-        }
-    }
-    None
-}
-
-fn urldecode(s: &str) -> String {
-    let s = s.replace('+', " ");
-    let mut result = Vec::with_capacity(s.len());
-    let mut chars = s.bytes();
-    while let Some(b) = chars.next() {
-        if b == b'%' {
-            let hi = chars.next().and_then(hex_val);
-            let lo = chars.next().and_then(hex_val);
-            if let (Some(h), Some(l)) = (hi, lo) {
-                result.push(h << 4 | l);
-            }
-        } else {
-            result.push(b);
-        }
-    }
-    String::from_utf8_lossy(&result).into_owned()
-}
-
-fn hex_val(b: u8) -> Option<u8> {
-    match b {
-        b'0'..=b'9' => Some(b - b'0'),
-        b'a'..=b'f' => Some(b - b'a' + 10),
-        b'A'..=b'F' => Some(b - b'A' + 10),
-        _ => None,
-    }
-}
-
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-    a.iter()
-        .zip(b.iter())
-        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
-        == 0
+    serde_urlencoded::from_bytes::<Vec<(String, String)>>(body)
+        .ok()?
+        .into_iter()
+        .find(|(k, _)| k == field)
+        .map(|(_, v)| v)
 }
 
 fn generate_token() -> String {
     let mut buf = [0u8; 32];
     getrandom::fill(&mut buf).expect("failed to generate csrf token");
-    hex_encode(&buf)
-}
-
-fn hex_encode(bytes: &[u8]) -> String {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut s = String::with_capacity(bytes.len() * 2);
-    for &b in bytes {
-        s.push(HEX[(b >> 4) as usize] as char);
-        s.push(HEX[(b & 0x0f) as usize] as char);
-    }
-    s
+    hex::encode(buf)
 }
 
 #[derive(Clone)]
 pub struct CsrfToken(pub String);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generate_token_returns_64_char_hex() {
+        let token = generate_token();
+        assert_eq!(token.len(), 64);
+        assert!(token.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn form_field_value_finds_target_field() {
+        let body = b"foo=bar&csrf_token=abc123&baz=qux";
+        assert_eq!(
+            form_field_value(body, "csrf_token"),
+            Some("abc123".to_string())
+        );
+    }
+
+    #[test]
+    fn form_field_value_returns_none_when_absent() {
+        let body = b"foo=bar&baz=qux";
+        assert_eq!(form_field_value(body, "csrf_token"), None);
+    }
+
+    #[test]
+    fn form_field_value_decodes_percent_encoded_value() {
+        let body = b"csrf_token=hello%20world";
+        assert_eq!(
+            form_field_value(body, "csrf_token"),
+            Some("hello world".to_string())
+        );
+    }
+
+    #[test]
+    fn form_field_value_decodes_plus_as_space() {
+        let body = b"csrf_token=hello+world";
+        assert_eq!(
+            form_field_value(body, "csrf_token"),
+            Some("hello world".to_string())
+        );
+    }
+}

@@ -14,13 +14,16 @@ dashmap = "6"
 dotenvy = "0.15"
 fastrand = "2.4"
 getrandom = "0.3"
+hex = "0.4"
 jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 mimalloc = "0.1"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
 scraper = "0.23"
 serde = { version = "1", features = ["derive"] }
+serde_urlencoded = "0.7"
 socket2 = "0.6"
 sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "macros", "uuid", "ipnetwork", "chrono"] }
+subtle = "2.6"
 time = "0.3"
 tokio = { version = "1", features = ["full"] }
 tokio-util = "0.7.18"

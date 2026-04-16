@@ -35,10 +35,7 @@ fn real_ip_inner(
         return fallback;
     }
 
-    if let Some(xff) = headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-    {
+    if let Some(xff) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
         let parts: Vec<&str> = xff.split(',').map(|s| s.trim()).collect();
         let ip_str = parts
             .iter()
@@ -83,9 +80,8 @@ impl RateLimiter {
         let now = Instant::now();
 
         if self.state.len() >= MAX_ENTRIES {
-            self.state.retain(|_, (_, start)| {
-                now.duration_since(*start).as_secs() < self.window_secs
-            });
+            self.state
+                .retain(|_, (_, start)| now.duration_since(*start).as_secs() < self.window_secs);
             if self.state.len() >= MAX_ENTRIES && !self.state.contains_key(&ip) {
                 return false;
             }
