@@ -68,7 +68,7 @@ pub async fn login_post(
 
     let expiry = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
+        .map_err(|e| AppError::Internal(e.to_string()))?
         .as_secs()
         + state.jwt_expiry_hours * 3600;
 
@@ -223,14 +223,19 @@ pub async fn add_site(
     .execute(&mut *tx)
     .await
     {
-        return match crate::error::is_unique_violation(&e) {
-            true => Ok(flash::redirect(
-                jar,
-                Flash::Error("slug already exists"),
-                "/admin/sites",
-            )),
-            false => Err(e.into()),
+        let msg = match crate::error::unique_constraint_name(&e) {
+            Some("sites_slug_key") => "slug already exists",
+            Some("sites_url_key") => "url already taken",
+            Some("sites_position_unique") => "position conflict",
+            Some(_) | None => {
+                if crate::error::is_unique_violation(&e) {
+                    "conflict"
+                } else {
+                    return Err(e.into());
+                }
+            }
         };
+        return Ok(flash::redirect(jar, Flash::Error(msg), "/admin/sites"));
     }
 
     tx.commit().await?;
@@ -267,7 +272,7 @@ pub async fn update_site(
     validate_name(name)?;
     validate_url(url)?;
 
-    let result = sqlx::query!(
+    let result = match sqlx::query!(
         "UPDATE sites SET slug = $1, name = $2, url = $3, description = $4 WHERE id = $5",
         slug,
         name,
@@ -276,7 +281,25 @@ pub async fn update_site(
         id,
     )
     .execute(&state.db)
-    .await?;
+    .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            let msg = match crate::error::unique_constraint_name(&e) {
+                Some("sites_slug_key") => "slug already exists",
+                Some("sites_url_key") => "url already taken",
+                Some("sites_position_unique") => "position conflict",
+                Some(_) | None => {
+                    if crate::error::is_unique_violation(&e) {
+                        "conflict"
+                    } else {
+                        return Err(e.into());
+                    }
+                }
+            };
+            return Ok(flash::redirect(jar, Flash::Error(msg), "/admin/sites"));
+        }
+    };
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
@@ -420,14 +443,22 @@ pub async fn approve_application(
     .execute(&mut *tx)
     .await
     {
-        return match crate::error::is_unique_violation(&e) {
-            true => Ok(flash::redirect(
-                jar,
-                Flash::Error("slug already exists"),
-                "/admin/applications",
-            )),
-            false => Err(e.into()),
+        let msg = match crate::error::unique_constraint_name(&e) {
+            Some("sites_slug_key") => "slug already exists",
+            Some("sites_url_key") => "url already taken",
+            Some(_) | None => {
+                if crate::error::is_unique_violation(&e) {
+                    "conflict"
+                } else {
+                    return Err(e.into());
+                }
+            }
         };
+        return Ok(flash::redirect(
+            jar,
+            Flash::Error(msg),
+            "/admin/applications",
+        ));
     }
 
     sqlx::query!(

@@ -43,3 +43,12 @@ impl From<sqlx::Error> for AppError {
 pub fn is_unique_violation(e: &sqlx::Error) -> bool {
     matches!(e, sqlx::Error::Database(db) if db.code().as_deref() == Some("23505"))
 }
+
+pub fn unique_constraint_name(e: &sqlx::Error) -> Option<&str> {
+    if let sqlx::Error::Database(db) = e
+        && db.code().as_deref() == Some("23505")
+    {
+        return db.constraint();
+    }
+    None
+}

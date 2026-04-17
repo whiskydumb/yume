@@ -63,10 +63,17 @@ pub async fn submit(
     )
     .execute(&state.db)
     .await {
-        return match crate::error::is_unique_violation(&e) {
-            true => Ok(flash::redirect(jar, Flash::Error("this slug is already taken"), "/apply")),
-            false => Err(e.into()),
+        let msg = match crate::error::unique_constraint_name(&e) {
+            Some("applications_slug_pending") => "this slug is already taken",
+            Some(_) | None => {
+                if crate::error::is_unique_violation(&e) {
+                    "conflict"
+                } else {
+                    return Err(e.into());
+                }
+            }
         };
+        return Ok(flash::redirect(jar, Flash::Error(msg), "/apply"));
     }
 
     Ok(flash::redirect(
